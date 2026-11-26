@@ -572,6 +572,32 @@ class LanceDb(VectorDb):
         # Sync upsert (via insert) will re-embed any documents that failed async embedding
         self.upsert(content_hash=content_hash, documents=documents, filters=filters, user_id=user_id)
 
+    def _evaluate_filter_expr(self, expr: Any, metadata: Dict[str, Any]) -> bool:
+        op = type(expr).__name__
+        key = getattr(expr, "key", None)
+        val = metadata.get(key) if key else None
+        if op == "EQ":
+            return val == expr.value
+        elif op == "NEQ":
+            return val != expr.value
+        elif op == "GT":
+            return val is not None and val > expr.value
+        elif op == "GTE":
+            return val is not None and val >= expr.value
+        elif op == "LT":
+            return val is not None and val < expr.value
+        elif op == "LTE":
+            return val is not None and val <= expr.value
+        elif op == "IN":
+            return val in expr.values
+        elif op == "AND":
+            return all(self._evaluate_filter_expr(e, metadata) for e in expr.expressions)
+        elif op == "OR":
+            return any(self._evaluate_filter_expr(e, metadata) for e in expr.expressions)
+        elif op == "NOT":
+            return not self._evaluate_filter_expr(expr.expression, metadata)
+        return False
+
     def _user_scope_where_clause(self, user_id: Optional[str]) -> Optional[str]:
         """Build the read-scope ``WHERE`` clause.
 
@@ -624,8 +650,7 @@ class LanceDb(VectorDb):
         results = None
 
         if isinstance(filters, list):
-            log_warning("Filter Expressions are not yet supported in LanceDB. No filters will be applied.")
-            filters = None
+            pass
 
         if self.search_type == SearchType.vector:
             results = self.vector_search(query, limit, user_id=user_id)
@@ -646,18 +671,23 @@ class LanceDb(VectorDb):
         if filters and search_results:
             filtered_results = []
             for doc in search_results:
-                if doc.meta_data is None:
-                    continue
+                meta = doc.meta_data or {}
+                if isinstance(filters, list):
+                    if all(self._evaluate_filter_expr(f, meta) for f in filters):
+                        filtered_results.append(doc)
+                else:
+                    if doc.meta_data is None:
+                        continue
 
-                # Check if all filter criteria match
-                match = True
-                for key, value in filters.items():
-                    if key not in doc.meta_data or doc.meta_data[key] != value:
-                        match = False
-                        break
+                    # Check if all filter criteria match
+                    match = True
+                    for key, value in filters.items():
+                        if key not in doc.meta_data or doc.meta_data[key] != value:
+                            match = False
+                            break
 
-                if match:
-                    filtered_results.append(doc)
+                    if match:
+                        filtered_results.append(doc)
 
             search_results = filtered_results
 

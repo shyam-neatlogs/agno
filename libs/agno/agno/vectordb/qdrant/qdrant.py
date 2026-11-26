@@ -643,11 +643,12 @@ class Qdrant(VectorDb):
                 bucket. ``None`` applies no scope
         """
 
-        if isinstance(filters, List):
-            log_warning("Filters Expressions are not supported in Qdrant. No filters will be applied.")
-            filters = None
+        if isinstance(filters, list):
+            must_filters = [self._compile_filter(f) for f in filters]
+            formatted_filters = models.Filter(must=must_filters) if must_filters else None
+        else:
+            formatted_filters = self._format_filters(filters or {})  # type: ignore
 
-        formatted_filters = self._format_filters(filters or {})  # type: ignore
         scoped_filter = self._merge_filters(formatted_filters, self._user_scope_filter(user_id))
         if self.search_type == SearchType.vector:
             results = self._run_vector_search_sync(query, limit, formatted_filters=scoped_filter)  # type: ignore
@@ -667,11 +668,12 @@ class Qdrant(VectorDb):
         filters: Optional[Union[Dict[str, Any], List[FilterExpr]]] = None,
         user_id: Optional[str] = None,
     ) -> List[Document]:
-        if isinstance(filters, List):
-            log_warning("Filters Expressions are not supported in Qdrant. No filters will be applied.")
-            filters = None
+        if isinstance(filters, list):
+            must_filters = [self._compile_filter(f) for f in filters]
+            formatted_filters = models.Filter(must=must_filters) if must_filters else None
+        else:
+            formatted_filters = self._format_filters(filters or {})  # type: ignore
 
-        formatted_filters = self._format_filters(filters or {})  # type: ignore
         scoped_filter = self._merge_filters(formatted_filters, self._user_scope_filter(user_id))
         if self.search_type == SearchType.vector:
             results = await self._run_vector_search_async(query, limit, formatted_filters=scoped_filter)  # type: ignore
@@ -857,6 +859,35 @@ class Qdrant(VectorDb):
 
         log_info(f"Found {len(search_results)} documents")
         return search_results
+
+    def _get_key(self, key: str) -> str:
+        if "." not in key and not key.startswith("meta_data.") and key not in ["name", "content", "usage", "content_id", "content_hash", self.USER_ID_KEY]:
+            return f"meta_data.{key}"
+        return key
+
+    def _compile_filter(self, filter_expr: Any) -> models.Filter:
+        op = type(filter_expr).__name__
+        if op == "EQ":
+            return models.Filter(must=[models.FieldCondition(key=self._get_key(filter_expr.key), match=models.MatchValue(value=filter_expr.value))])
+        elif op == "NEQ":
+            return models.Filter(must_not=[models.FieldCondition(key=self._get_key(filter_expr.key), match=models.MatchValue(value=filter_expr.value))])
+        elif op == "GT":
+            return models.Filter(must=[models.FieldCondition(key=self._get_key(filter_expr.key), range=models.Range(gt=filter_expr.value))])
+        elif op == "GTE":
+            return models.Filter(must=[models.FieldCondition(key=self._get_key(filter_expr.key), range=models.Range(gte=filter_expr.value))])
+        elif op == "LT":
+            return models.Filter(must=[models.FieldCondition(key=self._get_key(filter_expr.key), range=models.Range(lt=filter_expr.value))])
+        elif op == "LTE":
+            return models.Filter(must=[models.FieldCondition(key=self._get_key(filter_expr.key), range=models.Range(lte=filter_expr.value))])
+        elif op == "IN":
+            return models.Filter(must=[models.FieldCondition(key=self._get_key(filter_expr.key), match=models.MatchAny(any=filter_expr.values))])
+        elif op == "AND":
+            return models.Filter(must=[self._compile_filter(c) for c in filter_expr.expressions])
+        elif op == "OR":
+            return models.Filter(should=[self._compile_filter(c) for c in filter_expr.expressions])
+        elif op == "NOT":
+            return models.Filter(must_not=[self._compile_filter(filter_expr.expression)])
+        return models.Filter()
 
     def _user_scope_filter(self, user_id: Optional[str]) -> Optional[models.Filter]:
         """Build the tenant scope predicate: this owner's points OR the shared bucket.
