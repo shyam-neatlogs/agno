@@ -1,0 +1,482 @@
+[
+ {
+  "id": "W01",
+  "name": "qdrant: user_id = 'alice'",
+  "split": "working",
+  "input": {
+   "backend": "qdrant",
+   "filter": {
+    "op": "EQ",
+    "key": "user_id",
+    "value": "alice"
+   }
+  },
+  "expected": {
+   "names": [
+    "alice_notes",
+    "alice_plan"
+   ]
+  }
+ },
+ {
+  "id": "W02",
+  "name": "chroma: user_id = 'alice'",
+  "split": "working",
+  "input": {
+   "backend": "chroma",
+   "filter": {
+    "op": "EQ",
+    "key": "user_id",
+    "value": "alice"
+   }
+  },
+  "expected": {
+   "names": [
+    "alice_notes",
+    "alice_plan"
+   ]
+  }
+ },
+ {
+  "id": "W03",
+  "name": "lancedb: user_id = 'alice'",
+  "split": "working",
+  "input": {
+   "backend": "lancedb",
+   "filter": {
+    "op": "EQ",
+    "key": "user_id",
+    "value": "alice"
+   }
+  },
+  "expected": {
+   "names": [
+    "alice_notes",
+    "alice_plan"
+   ]
+  }
+ },
+ {
+  "id": "W04",
+  "name": "qdrant: score > 10",
+  "split": "working",
+  "input": {
+   "backend": "qdrant",
+   "filter": {
+    "op": "GT",
+    "key": "score",
+    "value": 10
+   }
+  },
+  "expected": {
+   "names": [
+    "alice_plan",
+    "bob_secret",
+    "carol_report",
+    "dave_ledger",
+    "erin_brief"
+   ]
+  }
+ },
+ {
+  "id": "W05",
+  "name": "chroma: score < 5",
+  "split": "working",
+  "input": {
+   "backend": "chroma",
+   "filter": {
+    "op": "LT",
+    "key": "score",
+    "value": 5
+   }
+  },
+  "expected": {
+   "names": [
+    "alice_notes",
+    "carol_memo"
+   ]
+  }
+ },
+ {
+  "id": "W06",
+  "name": "lancedb: team in ['green']",
+  "split": "working",
+  "input": {
+   "backend": "lancedb",
+   "filter": {
+    "op": "IN",
+    "key": "team",
+    "values": [
+     "green"
+    ]
+   }
+  },
+  "expected": {
+   "names": [
+    "carol_memo",
+    "dave_ledger"
+   ]
+  }
+ },
+ {
+  "id": "W07",
+  "name": "qdrant: (team = 'red' AND score >= 18)",
+  "split": "working",
+  "input": {
+   "backend": "qdrant",
+   "filter": {
+    "op": "AND",
+    "conditions": [
+     {
+      "op": "EQ",
+      "key": "team",
+      "value": "red"
+     },
+     {
+      "op": "GTE",
+      "key": "score",
+      "value": 18
+     }
+    ]
+   }
+  },
+  "expected": {
+   "names": [
+    "bob_secret",
+    "carol_report"
+   ]
+  }
+ },
+ {
+  "id": "W08",
+  "name": "chroma: (user_id = 'dave' OR region = 'apac')",
+  "split": "working",
+  "input": {
+   "backend": "chroma",
+   "filter": {
+    "op": "OR",
+    "conditions": [
+     {
+      "op": "EQ",
+      "key": "user_id",
+      "value": "dave"
+     },
+     {
+      "op": "EQ",
+      "key": "region",
+      "value": "apac"
+     }
+    ]
+   }
+  },
+  "expected": {
+   "names": [
+    "carol_report",
+    "dave_ledger",
+    "erin_brief"
+   ]
+  }
+ },
+ {
+  "id": "W09",
+  "name": "lancedb: region != 'eu'",
+  "split": "working",
+  "input": {
+   "backend": "lancedb",
+   "filter": {
+    "op": "NEQ",
+    "key": "region",
+    "value": "eu"
+   }
+  },
+  "expected": {
+   "names": [
+    "alice_notes",
+    "bob_draft",
+    "carol_report",
+    "dave_ledger",
+    "erin_brief"
+   ]
+  }
+ },
+ {
+  "id": "W10",
+  "name": "qdrant: NOT user_id in ['alice', 'bob']",
+  "split": "working",
+  "input": {
+   "backend": "qdrant",
+   "filter": {
+    "op": "NOT",
+    "condition": {
+     "op": "IN",
+     "key": "user_id",
+     "values": [
+      "alice",
+      "bob"
+     ]
+    }
+   }
+  },
+  "expected": {
+   "names": [
+    "carol_memo",
+    "carol_report",
+    "dave_ledger",
+    "erin_brief"
+   ]
+  }
+ },
+ {
+  "id": "W11",
+  "name": "chroma: user_id = 'zoe'",
+  "split": "working",
+  "input": {
+   "backend": "chroma",
+   "filter": {
+    "op": "EQ",
+    "key": "user_id",
+    "value": "zoe"
+   }
+  },
+  "expected": {
+   "names": []
+  }
+ },
+ {
+  "id": "W12",
+  "name": "lancedb: score <= 7",
+  "split": "working",
+  "input": {
+   "backend": "lancedb",
+   "filter": {
+    "op": "LTE",
+    "key": "score",
+    "value": 7
+   }
+  },
+  "expected": {
+   "names": [
+    "alice_notes",
+    "bob_draft",
+    "carol_memo"
+   ]
+  }
+ },
+ {
+  "id": "V01",
+  "name": "chroma: user_id in ['bob', 'erin']",
+  "split": "validation",
+  "input": {
+   "backend": "chroma",
+   "filter": {
+    "op": "IN",
+    "key": "user_id",
+    "values": [
+     "bob",
+     "erin"
+    ]
+   }
+  },
+  "expected": {
+   "names": [
+    "bob_draft",
+    "bob_secret",
+    "erin_brief"
+   ]
+  }
+ },
+ {
+  "id": "V02",
+  "name": "lancedb: score > 20",
+  "split": "validation",
+  "input": {
+   "backend": "lancedb",
+   "filter": {
+    "op": "GT",
+    "key": "score",
+    "value": 20
+   }
+  },
+  "expected": {
+   "names": [
+    "bob_secret",
+    "dave_ledger"
+   ]
+  }
+ },
+ {
+  "id": "V03",
+  "name": "qdrant: ((region = 'eu' AND score < 5) OR user_id = 'erin')",
+  "split": "validation",
+  "input": {
+   "backend": "qdrant",
+   "filter": {
+    "op": "OR",
+    "conditions": [
+     {
+      "op": "AND",
+      "conditions": [
+       {
+        "op": "EQ",
+        "key": "region",
+        "value": "eu"
+       },
+       {
+        "op": "LT",
+        "key": "score",
+        "value": 5
+       }
+      ]
+     },
+     {
+      "op": "EQ",
+      "key": "user_id",
+      "value": "erin"
+     }
+    ]
+   }
+  },
+  "expected": {
+   "names": [
+    "carol_memo",
+    "erin_brief"
+   ]
+  }
+ },
+ {
+  "id": "V04",
+  "name": "chroma: NOT team = 'blue'",
+  "split": "validation",
+  "input": {
+   "backend": "chroma",
+   "filter": {
+    "op": "NOT",
+    "condition": {
+     "op": "EQ",
+     "key": "team",
+     "value": "blue"
+    }
+   }
+  },
+  "expected": {
+   "names": [
+    "alice_plan",
+    "bob_secret",
+    "carol_memo",
+    "carol_report",
+    "dave_ledger"
+   ]
+  }
+ },
+ {
+  "id": "V05",
+  "name": "lancedb: (user_id = 'bob' AND team = 'red')",
+  "split": "validation",
+  "input": {
+   "backend": "lancedb",
+   "filter": {
+    "op": "AND",
+    "conditions": [
+     {
+      "op": "EQ",
+      "key": "user_id",
+      "value": "bob"
+     },
+     {
+      "op": "EQ",
+      "key": "team",
+      "value": "red"
+     }
+    ]
+   }
+  },
+  "expected": {
+   "names": [
+    "bob_secret"
+   ]
+  }
+ },
+ {
+  "id": "V06",
+  "name": "qdrant: score <= 3",
+  "split": "validation",
+  "input": {
+   "backend": "qdrant",
+   "filter": {
+    "op": "LTE",
+    "key": "score",
+    "value": 3
+   }
+  },
+  "expected": {
+   "names": [
+    "alice_notes",
+    "carol_memo"
+   ]
+  }
+ },
+ {
+  "id": "V07",
+  "name": "chroma: (score >= 12 AND score <= 18)",
+  "split": "validation",
+  "input": {
+   "backend": "chroma",
+   "filter": {
+    "op": "AND",
+    "conditions": [
+     {
+      "op": "GTE",
+      "key": "score",
+      "value": 12
+     },
+     {
+      "op": "LTE",
+      "key": "score",
+      "value": 18
+     }
+    ]
+   }
+  },
+  "expected": {
+   "names": [
+    "alice_plan",
+    "carol_report",
+    "erin_brief"
+   ]
+  }
+ },
+ {
+  "id": "V08",
+  "name": "lancedb: NOT (region = 'us' OR team = 'green')",
+  "split": "validation",
+  "input": {
+   "backend": "lancedb",
+   "filter": {
+    "op": "NOT",
+    "condition": {
+     "op": "OR",
+     "conditions": [
+      {
+       "op": "EQ",
+       "key": "region",
+       "value": "us"
+      },
+      {
+       "op": "EQ",
+       "key": "team",
+       "value": "green"
+      }
+     ]
+    }
+   }
+  },
+  "expected": {
+   "names": [
+    "alice_plan",
+    "bob_secret",
+    "carol_report",
+    "erin_brief"
+   ]
+  }
+ }
+]

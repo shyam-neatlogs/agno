@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "name": "agno vector DB filters (agno-agi/agno#11904)",
+  "runtime": "python:3.12",
+  "workingDirectory": ".",
+  "buildCommand": [
+    "python3", "-m", "pip", "install", "--no-input", "-e", ".",
+    "chromadb==1.5.9", "lancedb==0.41.0", "qdrant-client==1.20.0", "openai"
+  ],
+  "command": ["python3", ".neatlogs/filter_harness.py"],
+  "editableFiles": [
+    "agno/vectordb/chroma/chromadb.py",
+    "agno/vectordb/qdrant/qdrant.py",
+    "agno/vectordb/lancedb/lance_db.py"
+  ],
+  "environment": [],
+  "casesFile": ".neatlogs/cases.json",
+  "verifyCommands": [
+    {
+      "label": "agno vector DB tests",
+      "command": [
+        "python3", "-m", "pytest", "-q", "-p", "no:cacheprovider",
+        "tests/unit/vectordb/test_chromadb.py",
+        "tests/unit/vectordb/test_chromadb_user_isolation.py",
+        "tests/unit/vectordb/test_qdrantdb.py",
+        "tests/unit/vectordb/test_qdrant_user_isolation.py",
+        "tests/unit/vectordb/test_lancedb.py",
+        "tests/unit/vectordb/test_lancedb_user_isolation.py"
+      ],
+      "timeoutSeconds": 300,
+      "install": ["pytest==9.1.1", "pytest-asyncio==1.4.0", "pytest-mock==3.15.1"]
+    },
+    {
+      "label": "ruff",
+      "command": [
+        "ruff", "check",
+        "agno/vectordb/chroma/chromadb.py",
+        "agno/vectordb/qdrant/qdrant.py",
+        "agno/vectordb/lancedb/lance_db.py"
+      ],
+      "timeoutSeconds": 120,
+      "install": ["ruff==0.15.20"]
+    }
+  ]
+}
