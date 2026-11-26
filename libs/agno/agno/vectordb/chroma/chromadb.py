@@ -862,6 +862,34 @@ class ChromaDb(VectorDb):
 
         return result
 
+    def _compile_filter(self, filter_expr: Any) -> Dict[str, Any]:
+        op = type(filter_expr).__name__
+        if op == "EQ":
+            return {filter_expr.key: {"$eq": filter_expr.value}}
+        elif op == "NEQ":
+            return {filter_expr.key: {"$ne": filter_expr.value}}
+        elif op == "GT":
+            return {filter_expr.key: {"$gt": filter_expr.value}}
+        elif op == "GTE":
+            return {filter_expr.key: {"$gte": filter_expr.value}}
+        elif op == "LT":
+            return {filter_expr.key: {"$lt": filter_expr.value}}
+        elif op == "LTE":
+            return {filter_expr.key: {"$lte": filter_expr.value}}
+        elif op == "IN":
+            return {filter_expr.key: {"$in": filter_expr.values}}
+        elif op == "AND":
+            return {"$and": [self._compile_filter(c) for c in filter_expr.expressions]}
+        elif op == "OR":
+            return {"$or": [self._compile_filter(c) for c in filter_expr.expressions]}
+        elif op == "NOT":
+            sub_op = type(filter_expr.expression).__name__
+            if sub_op == "IN":
+                return {filter_expr.expression.key: {"$nin": filter_expr.expression.values}}
+            elif sub_op == "EQ":
+                return {filter_expr.expression.key: {"$ne": filter_expr.expression.value}}
+        return {}
+
     def search(
         self,
         query: str,
@@ -886,8 +914,13 @@ class ChromaDb(VectorDb):
             List[Document]: List of search results.
         """
         if isinstance(filters, list):
-            log_warning("Filter Expressions are not yet supported in ChromaDB. No filters will be applied.")
-            filters = None
+            filter_dicts = [self._compile_filter(f) for f in filters]
+            if len(filter_dicts) == 1:
+                filters = filter_dicts[0]
+            elif filter_dicts:
+                filters = {"$and": filter_dicts}
+            else:
+                filters = None
 
         collections = self._collections_to_query(user_id)
         if not collections:
@@ -1406,7 +1439,9 @@ class ChromaDb(VectorDb):
             return {}
 
         # If filters already use ChromaDB operators ($eq, $ne, etc.), return as is
-        if any(key.startswith("$") for key in filters.keys()):
+        if any(key.startswith("$") for key in filters.keys()) or any(
+            isinstance(v, dict) and any(k.startswith("$") for k in v.keys()) for v in filters.values()
+        ):
             return filters
 
         # Convert simple key-value pairs to ChromaDB's format
