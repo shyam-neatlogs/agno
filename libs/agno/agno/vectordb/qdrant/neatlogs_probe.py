@@ -2,7 +2,7 @@
 
 One document with the given metadata goes into an in-memory Qdrant; the
 search runs with the given filters. Returns how many documents matched.
-This file is test scaffolding: the fix belongs in agno/vectordb/qdrant/.
+Test scaffolding only: the fix belongs in qdrant.py, not here.
 """
 
 from agno.knowledge.document import Document

@@ -80,3 +80,5 @@ typing-inspection==0.4.2
     #   pydantic-settings
 wcwidth==0.8.2
     # via prompt-toolkit
+qdrant-client
+    # Neatlogs Sandbox harness for #11907 (neatlogs_probe.py)
