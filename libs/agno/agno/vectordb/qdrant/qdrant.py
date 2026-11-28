@@ -887,25 +887,89 @@ class Qdrant(VectorDb):
             return scope
         return models.Filter(must=[base, scope])
 
+    # A dotted key with n segments has 2 ** (n - 1) possible storage layouts; above this
+    # many segments only the fully nested and the fully flat layouts are tried.
+    _MAX_EXPANDED_KEY_SEGMENTS = 6
+
+    @staticmethod
+    def _quote_key_segment(segment: str) -> str:
+        # Qdrant reads "." in a key as nesting; a quoted segment is a single field name
+        if "." in segment and '"' not in segment:
+            return f'"{segment}"'
+        return segment
+
+    def _metadata_key_paths(self, dotted_key: str) -> List[str]:
+        """Return every payload path under meta_data where a dotted metadata key may be stored.
+
+        "a.b.c" may be stored nested ({"a": {"b": {"c": ...}}}), flat ({"a.b.c": ...}) or
+        partly nested ({"a.b": {"c": ...}} or {"a": {"b.c": ...}}), so each way of grouping
+        the segments into field names is a candidate path.
+        """
+        segments = dotted_key.split(".")
+        if len(segments) > self._MAX_EXPANDED_KEY_SEGMENTS:
+            groupings = [segments, [dotted_key]]
+        else:
+            groupings = []
+            for mask in range(2 ** (len(segments) - 1)):
+                parts: List[str] = []
+                current = segments[0]
+                for index, segment in enumerate(segments[1:]):
+                    if mask & (1 << index):
+                        current = f"{current}.{segment}"
+                    else:
+                        parts.append(current)
+                        current = segment
+                parts.append(current)
+                groupings.append(parts)
+
+        paths: List[str] = []
+        for parts in groupings:
+            path = "meta_data." + ".".join(self._quote_key_segment(part) for part in parts)
+            if path not in paths:
+                paths.append(path)
+        return paths
+
+    def _filter_leaf_condition(self, key: str, value: Any, keep_raw_path: bool) -> Any:
+        """Build the condition for one filter key and value; key may be dotted or meta_data.-prefixed.
+
+        keep_raw_path keeps the key itself as one candidate payload path, which is how a dotted
+        top-level filter key was matched before dotted metadata keys were supported.
+        """
+        if key.startswith("meta_data."):
+            metadata_key = key[len("meta_data.") :]
+            raw_key = None
+        elif "." in key:
+            metadata_key = key
+            raw_key = key if keep_raw_path else None
+        else:
+            return models.FieldCondition(key=f"meta_data.{key}", match=models.MatchValue(value=value))
+
+        if not metadata_key or "" in metadata_key.split("."):
+            return models.FieldCondition(key=key, match=models.MatchValue(value=value))
+
+        paths = self._metadata_key_paths(metadata_key)
+        if raw_key is not None and raw_key not in paths:
+            paths.append(raw_key)
+        conditions = [models.FieldCondition(key=path, match=models.MatchValue(value=value)) for path in paths]
+        if len(conditions) == 1:
+            return conditions[0]
+        return models.Filter(should=conditions)  # type: ignore
+
+    def _filter_leaves(self, key: str, value: Any, keep_raw_path: bool) -> List[Any]:
+        # A nested dict filter {"a": {"b": v}} addresses the same field as the dotted key "a.b"
+        if isinstance(value, dict):
+            leaves: List[Any] = []
+            for sub_key, sub_value in value.items():
+                leaves.extend(self._filter_leaves(f"{key}.{sub_key}", sub_value, keep_raw_path))
+            return leaves
+        return [self._filter_leaf_condition(key, value, keep_raw_path)]
+
     def _format_filters(self, filters: Optional[Dict[str, Any]]) -> Optional[models.Filter]:
         if filters:
-            filter_conditions = []
+            filter_conditions: List[Any] = []
             for key, value in filters.items():
-                # If key contains a dot already, assume it's in the correct format
-                # Otherwise, assume it's a metadata field and add the prefix
-                if "." not in key and not key.startswith("meta_data."):
-                    # This is a simple field name, assume it's metadata
-                    key = f"meta_data.{key}"
-
-                if isinstance(value, dict):
-                    # Handle nested dictionaries
-                    for sub_key, sub_value in value.items():
-                        filter_conditions.append(
-                            models.FieldCondition(key=f"{key}.{sub_key}", match=models.MatchValue(value=sub_value))
-                        )
-                else:
-                    # Handle direct key-value pairs
-                    filter_conditions.append(models.FieldCondition(key=key, match=models.MatchValue(value=value)))
+                keep_raw_path = "." in key and not key.startswith("meta_data.")
+                filter_conditions.extend(self._filter_leaves(key, value, keep_raw_path))
 
             if filter_conditions:
                 return models.Filter(must=filter_conditions)  # type: ignore
