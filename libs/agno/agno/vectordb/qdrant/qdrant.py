@@ -888,27 +888,45 @@ class Qdrant(VectorDb):
         return models.Filter(must=[base, scope])
 
     def _format_filters(self, filters: Optional[Dict[str, Any]]) -> Optional[models.Filter]:
+        def key_paths(key: str) -> List[str]:
+            # Quoted components already specify which dots are literal.
+            if "." not in key or '"' in key:
+                return [key]
+
+            paths = [f'"{key}"']
+            for index, char in enumerate(key):
+                if char == ".":
+                    parent = key[:index]
+                    if "." in parent:
+                        parent = f'"{parent}"'
+                    paths.extend(f"{parent}.{child}" for child in key_paths(key[index + 1 :]))
+            return paths
+
+        filter_conditions: List[models.Condition] = []
+
+        def add_condition(paths: List[str], value: Any) -> None:
+            conditions: List[models.Condition] = [
+                models.FieldCondition(key=f"meta_data.{path}", match=models.MatchValue(value=value)) for path in paths
+            ]
+            # Alternatives belong to one equality; independent equalities must all match.
+            filter_conditions.append(conditions[0] if len(conditions) == 1 else models.Filter(should=conditions))
+
         if filters:
-            filter_conditions = []
             for key, value in filters.items():
-                # If key contains a dot already, assume it's in the correct format
-                # Otherwise, assume it's a metadata field and add the prefix
-                if "." not in key and not key.startswith("meta_data."):
-                    # This is a simple field name, assume it's metadata
-                    key = f"meta_data.{key}"
+                if key.startswith("meta_data."):
+                    key = key[len("meta_data.") :]
+                paths = key_paths(key)
 
                 if isinstance(value, dict):
-                    # Handle nested dictionaries
+                    # An explicit dictionary boundary remains a path separator.
                     for sub_key, sub_value in value.items():
-                        filter_conditions.append(
-                            models.FieldCondition(key=f"{key}.{sub_key}", match=models.MatchValue(value=sub_value))
-                        )
+                        nested_paths = [f"{parent}.{child}" for parent in paths for child in key_paths(sub_key)]
+                        add_condition(nested_paths, sub_value)
                 else:
-                    # Handle direct key-value pairs
-                    filter_conditions.append(models.FieldCondition(key=key, match=models.MatchValue(value=value)))
+                    add_condition(paths, value)
 
             if filter_conditions:
-                return models.Filter(must=filter_conditions)  # type: ignore
+                return models.Filter(must=filter_conditions)
 
         return None
 
